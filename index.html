@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asklytics.</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
+        /* Force scrollbar gutter to prevent layout shifting */
+        
+        html {
+            scrollbar-gutter: stable;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background-color: #FFFFFF;
+            overflow-x: hidden;
+            overflow-y: scroll;
+        }
+        /* Custom Scrollbar - Vertical */
+        
+         ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+            background-color: transparent;
+        }
+        
+         ::-webkit-scrollbar-track {
+            background-color: transparent;
+        }
+        
+         ::-webkit-scrollbar-thumb {
+            background-color: transparent;
+            border-radius: 0px;
+        }
+        
+        body:hover::-webkit-scrollbar-thumb {
+            background-color: rgba(203, 213, 225, 0.6);
+        }
+        
+        body:hover::-webkit-scrollbar-thumb:hover {
+            background-color: rgba(148, 163, 184, 0.8);
+        }
+        /* Custom Scrollbar - Horizontal */
+        
+         ::-webkit-scrollbar:horizontal {
+            height: 8px;
+            background-color: transparent;
+        }
+        
+         ::-webkit-scrollbar-thumb:horizontal {
+            background-color: transparent;
+            border-radius: 0px;
+        }
+        
+        *:hover::-webkit-scrollbar-thumb:horizontal {
+            background-color: rgba(203, 213, 225, 0.6);
+        }
+        
+        *:hover::-webkit-scrollbar-thumb:horizontal:hover {
+            background-color: rgba(148, 163, 184, 0.8);
+        }
+        
+        .hero-collapse {
+            max-height: 500px;
+            opacity: 1;
+            transform: translateY(0);
+            transition: max-height 0.6s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease, transform 0.5s ease;
+        }
+        
+        .hero-collapse.collapsed {
+            max-height: 0px;
+            opacity: 0;
+            transform: translateY(-20px);
+            margin-bottom: 0px !important;
+            padding-top: 0px !important;
+            padding-bottom: 0px !important;
+            overflow: hidden;
+        }
+        
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        
+        @media print {
+            body {
+                background: white !important;
+            }
+            nav,
+            #inputAreaWrapper,
+            #chatContainer,
+            #datasetContainer,
+            .no-print,
+            .grid-bg {
+                display: none !important;
+            }
+            #dashboardContainer {
+                display: flex !important;
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+        }
+    </style>
+</head>
+
+<body class="text-[#0F172A] antialiased min-h-screen relative pt-16 flex flex-col justify-between selection:bg-[#0F172A] selection:text-white">
+
+
+    <!-- Initial Loading Screen -->
+    <div id="initialLoader" class="fixed inset-0 z-[9999] bg-white flex flex-col items-center justify-center gap-12">
+        <h1 class="text-7xl md:text-9xl font-black tracking-tighter text-[#0F172A] uppercase">Asklytics.</h1>
+        <svg width="128" height="128" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" class="text-[#0F172A]">
+            <circle cx="4" cy="12" r="2" fill="currentColor">
+                <animate
+                    id="spinner_qFRN"
+                    begin="0;spinner_OcgL.end+0.25s"
+                    attributeName="cy"
+                    calcMode="spline"
+                    dur="0.6s"
+                    values="12;6;12"
+                    keySplines=".33,.66,.66,1;.33,0,.66,.33"
+                />
+            </circle>
+            <circle cx="12" cy="12" r="2" fill="currentColor">
+                <animate
+                    begin="spinner_qFRN.begin+0.1s"
+                    attributeName="cy"
+                    calcMode="spline"
+                    dur="0.6s"
+                    values="12;6;12"
+                    keySplines=".33,.66,.66,1;.33,0,.66,.33"
+                />
+            </circle>
+            <circle cx="20" cy="12" r="2" fill="currentColor">
+                <animate
+                    id="spinner_OcgL"
+                    begin="spinner_qFRN.begin+0.2s"
+                    attributeName="cy"
+                    calcMode="spline"
+                    dur="0.6s"
+                    values="12;6;12"
+                    keySplines=".33,.66,.66,1;.33,0,.66,.33"
+                />
+            </circle>
+        </svg>
+    </div>
+
+    <!-- Insight Toast Banner -->
+    <div id="insightBanner" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 transform -translate-y-12 opacity-0 transition-all duration-500 hidden items-center gap-3 bg-[#0F172A] text-white px-5 py-3 rounded-none shadow-xl border border-slate-700 pointer-events-none">
+        <i data-lucide="zap" class="w-4 h-4 text-amber-400"></i>
+        <span id="insightBannerText" class="text-sm font-medium tracking-wide"></span>
+    </div>
+
+    <!-- Dark Navbar with 3-column Grid to prevent tab shifting -->
+    <nav class="fixed top-0 inset-x-0 z-50 bg-[#0F172A] h-16 grid grid-cols-3 items-center px-6 border-b border-slate-800 rounded-none shadow-md">
+
+        <!-- Left: Logo -->
+        <div class="flex justify-start">
+            <span class="text-3xl font-black tracking-tighter text-white select-none uppercase">Asklytics.</span>
+        </div>
+
+        <!-- Center: Tabs -->
+        <div class="flex justify-center">
+            <div class="flex items-center gap-1 bg-slate-800 p-1 rounded-none w-max">
+                <button onclick="switchView('chat')" id="tabChat" class="px-5 py-1.5 rounded-none text-xs font-bold bg-[#0F172A] text-white transition-all uppercase tracking-wide">Agent Chat</button>
+                <button onclick="switchView('dashboard')" id="tabDash" class="px-5 py-1.5 rounded-none text-xs font-bold text-slate-400 hover:text-white transition-all uppercase tracking-wide">Dashboard</button>
+                <button onclick="switchView('dataset')" id="tabData" class="px-5 py-1.5 rounded-none text-xs font-bold text-slate-400 hover:text-white transition-all uppercase tracking-wide">Dataset</button>
+            </div>
+        </div>
+
+        <!-- Right: Actions & Status -->
+        <div class="flex justify-end items-center gap-6">
+            <button onclick="printDashboard()" id="printBtn" class="hidden items-center gap-2 text-xs font-bold text-slate-400 hover:text-white transition-colors uppercase tracking-wide">
+                <i data-lucide="printer" class="w-4 h-4"></i>
+                <span>Save PDF</span>
+            </button>
+            <div class="flex flex-col items-end gap-0.5 mt-0.5">
+                <div class="flex items-center gap-2 bg-slate-800 px-3 py-1.5 rounded-none border border-slate-700">
+                    <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                    <span class="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Operational</span>
+                </div>
+                <span class="text-[9px] font-semibold text-slate-500 uppercase tracking-widest mr-1">By Yuvraj</span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="relative z-10 w-full flex-1 flex flex-col justify-start px-4 md:px-12 mx-auto">
+
+        <div class="hero-collapse text-center max-w-2xl mx-auto mt-12 py-12 px-8 relative z-10" id="welcomeHeroArea">
+            <h2 class="text-3xl sm:text-5xl font-black tracking-tighter text-[#0F172A] mb-4 uppercase drop-shadow-sm">Data Analytics Engine</h2>
+            <p class="text-sm sm:text-base text-slate-500 font-medium leading-relaxed mb-8">
+                Submit raw business intelligence sheets to map telemetry values and compute diagnostic matrices.
+            </p>
+            <div class="inline-flex flex-wrap justify-center gap-3 text-xs font-bold tracking-widest text-slate-400 uppercase">
+                <span class="px-2 py-1 border-b-2 border-slate-200">CSV</span>
+                <span class="px-2 py-1 border-b-2 border-slate-200">XLSX</span>
+                <span class="px-2 py-1 border-b-2 border-slate-200">PDF</span>
+                <span class="px-2 py-1 border-b-2 border-slate-200">DOCX</span>
+            </div>
+        </div>
+
+        <!-- CHAT VIEW -->
+        <div class="w-full max-w-[95%] mx-auto mb-32 hidden flex-col transition-all duration-500 gap-8 pb-12 pt-4" id="chatContainer">
+        </div>
+
+        <!-- DATASET VIEW -->
+        <div class="w-full max-w-[95%] mx-auto mb-32 hidden flex-col transition-all duration-500 gap-6 pb-12 pt-4" id="datasetContainer">
+
+            <div class="flex items-center justify-between p-6 bg-transparent">
+                <div>
+                    <h2 class="text-xl font-bold text-[#0F172A] mb-1 uppercase tracking-wide">Raw Dataset View</h2>
+                    <p class="text-sm text-slate-500">Preview all records of your attached tabular data</p>
+                </div>
+                <button onclick="generateDataset()" id="genDataBtn" class="bg-[#0F172A] hover:bg-slate-800 text-white text-sm font-bold px-5 py-2.5 rounded-none flex items-center gap-2 transition-all uppercase tracking-wide shadow-md">
+                    <i data-lucide="database" class="w-4 h-4"></i>
+                    <span>Load Data</span>
+                </button>
+            </div>
+
+            <div id="dataLoader" class="hidden w-full h-64 flex-col items-center justify-center gap-4 border-dashed border-2 border-slate-200 rounded-none bg-transparent">
+                <i data-lucide="loader-2" class="w-8 h-8 animate-spin text-slate-500"></i>
+                <span class="text-sm font-bold text-slate-600 uppercase tracking-wider">Parsing tabular structure...</span>
+            </div>
+
+            <div class="w-full overflow-x-auto p-4 hidden bg-transparent" id="dataTableContainer">
+                <div class="inline-block min-w-full align-middle">
+                    <div class="border border-slate-200 rounded-none overflow-hidden bg-white shadow-sm">
+                        <table class="min-w-full divide-y divide-slate-200" id="rawDataTable">
+                            <thead class="bg-slate-50" id="rawDataTableHead"></thead>
+                            <tbody class="bg-white divide-y divide-slate-100" id="rawDataTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- DASHBOARD VIEW -->
+        <div class="w-full max-w-[95%] mx-auto mb-32 hidden flex-col transition-all duration-500 gap-6 pb-12 pt-4" id="dashboardContainer">
+
+            <div class="flex items-center justify-between p-6 bg-transparent border-b border-slate-200">
+                <div class="flex flex-col gap-1">
+                    <div class="flex items-center gap-3">
+                        <h2 class="text-xl font-black text-[#0F172A] uppercase tracking-wide">Executive Dashboard</h2>
+                        <span id="dashDatasetName" class="text-[10px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 uppercase tracking-widest hidden"></span>
+                    </div>
+                    <p id="dashDatasetDesc" class="text-sm text-slate-500 font-medium">Auto-generated multi-dimensional analysis</p>
+                </div>
+                <button onclick="generateDashboard()" id="genDashBtn" class="bg-[#0F172A] hover:bg-slate-800 text-white text-sm font-bold px-5 py-2.5 rounded-none flex items-center gap-2 transition-all uppercase tracking-wide shadow-md">
+                    <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+                    <span>Generate Analytics</span>
+                </button>
+            </div>
+
+            <div id="dashContent" class="hidden flex-col gap-6 w-full mt-4">
+                <!-- KPI / Insights Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" id="dashInsightsGrid">
+                    <!-- Cards will be populated here -->
+                </div>
+
+                <!-- Charts Grid -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-6" id="dashChartsGrid">
+                    <!-- Charts will be populated here -->
+                </div>
+
+                <!-- Dynamic Dashboard Expansion Panel -->
+                <div class="mt-12 border-t border-slate-200 pt-8">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-sm font-bold text-slate-700 uppercase tracking-wide">Expand Dashboard</span>
+                        <div id="dashAddLoader" class="hidden items-center gap-2">
+                            <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-slate-400"></i>
+                            <span class="text-xs font-bold text-slate-500 uppercase tracking-widest">Generating Insight...</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="text" id="dashAddInput" placeholder="E.g., Add a pie chart showing sales distribution, or summarize the outliers..." class="flex-1 bg-slate-50 border border-slate-300 px-5 py-3 text-sm text-slate-700 focus:outline-none focus:border-[#0F172A] rounded-none shadow-sm placeholder-slate-400">
+                        <button onclick="submitDashboardAddition()" class="bg-[#0F172A] hover:bg-slate-800 text-white px-6 py-3 font-bold text-sm uppercase tracking-wider rounded-none shadow-sm transition-colors border border-[#0F172A]">Add Insight</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="dashLoader" class="hidden w-full h-64 flex-col items-center justify-center gap-4 bg-transparent border-dashed border-2 border-slate-200 rounded-none">
+                <i data-lucide="loader-2" class="w-8 h-8 animate-spin text-slate-500"></i>
+                <span class="text-sm font-bold text-slate-600 uppercase tracking-wider">Aggregating matrices...</span>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Dark Input Area Wrapper, perfectly full width -->
+    <div id="inputAreaWrapper" class="w-full bg-[#0F172A] border-t border-slate-800 p-4 sticky bottom-0 z-40 pointer-events-auto">
+        <div class="w-full mx-auto flex flex-col gap-3 px-0 md:px-4">
+
+            <div class="flex flex-col gap-3 w-full">
+                <div class="flex items-center justify-between w-full">
+                    <div id="fileChipsContainer" class="hidden flex-wrap items-center gap-2">
+                    </div>
+
+                    <button onclick="toggleSuggestions()" id="sugToggleBtn" class="hidden items-center gap-1.5 bg-slate-800 border border-slate-700 text-slate-300 px-3 py-1 rounded-none hover:bg-slate-700 transition-colors shadow-sm ml-auto">
+                        <i data-lucide="lightbulb" class="w-3.5 h-3.5"></i>
+                        <span class="text-xs font-bold uppercase tracking-wide">Suggestions</span>
+                    </button>
+                </div>
+
+                <!-- Static Chips Row -->
+                <div id="suggestionsBlock" class="hidden w-full flex items-center gap-2 overflow-x-auto pb-1">
+                    <button onclick="useSuggestion(this.innerText)" class="shrink-0 bg-slate-800 border border-slate-700 hover:border-slate-500 text-slate-400 hover:text-white px-4 py-2 rounded-none text-xs font-bold uppercase tracking-wide transition-colors">Top 3 distributions</button>
+                    <button onclick="useSuggestion(this.innerText)" class="shrink-0 bg-slate-800 border border-slate-700 hover:border-slate-500 text-slate-400 hover:text-white px-4 py-2 rounded-none text-xs font-bold uppercase tracking-wide transition-colors">Identify outliers</button>
+                    <button onclick="useSuggestion(this.innerText)" class="shrink-0 bg-slate-800 border border-slate-700 hover:border-slate-500 text-slate-400 hover:text-white px-4 py-2 rounded-none text-xs font-bold uppercase tracking-wide transition-colors">Correlation heatmap</button>
+                    <button onclick="useSuggestion(this.innerText)" class="shrink-0 bg-slate-800 border border-slate-700 hover:border-slate-500 text-slate-400 hover:text-white px-4 py-2 rounded-none text-xs font-bold uppercase tracking-wide transition-colors">Summarize trends</button>
+
+                    <button type="button" onclick="dismissSuggestions()" class="shrink-0 flex items-center justify-center w-8 h-8 bg-slate-800 hover:bg-rose-900 text-slate-500 hover:text-rose-400 border border-slate-700 hover:border-rose-800 rounded-none transition-colors ml-auto">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="relative flex flex-col w-full">
+                <div class="w-full flex flex-col relative bg-slate-800 border border-slate-700 rounded-none overflow-hidden transition-all shadow-sm focus-within:border-slate-500" id="inputContainer">
+
+                    <div id="quotedContext" class="hidden items-center justify-between bg-slate-900 border-b border-slate-700 px-4 py-2">
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            <i data-lucide="message-square-quote" class="w-3.5 h-3.5 text-slate-500 shrink-0"></i>
+                            <span id="quotedText" class="text-xs font-bold text-slate-300 truncate max-w-xl"></span>
+                        </div>
+                        <button type="button" onclick="clearQuotedContext()" class="text-slate-500 hover:text-rose-500">
+                            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+
+                    <button type="button" onclick="triggerFileUploadClick()" class="absolute left-4 top-auto bottom-3 flex items-center justify-center h-9 w-9 rounded-none bg-slate-900 border border-slate-700 hover:bg-slate-700 text-slate-400 hover:text-white transition-all cursor-pointer z-10 shadow-sm">
+                        <i data-lucide="paperclip" class="w-4 h-4 transform scale-x-[-1] rotate-45"></i>
+                    </button>
+
+                    <input type="file" id="hiddenFileInput" class="hidden" multiple accept=".csv,.xlsx,.pdf,.docx" onchange="handleFileSelectionEvent(this)" />
+
+                    <textarea id="queryInput" placeholder="Attach a data asset to unlock the execution terminal..." rows="1" disabled class="w-full bg-transparent border-none pl-16 pr-16 py-4 text-sm font-semibold text-white placeholder-slate-500 focus:outline-none focus:ring-0 resize-none overflow-y-auto leading-relaxed max-h-40 cursor-not-allowed"
+                        oninput="adjustTextAreaHeight(this)"></textarea>
+
+                    <button type="button" id="submitActionButton" disabled onclick="submitAnalysisQuery()" class="absolute right-4 top-auto bottom-3 flex items-center justify-center h-9 w-9 rounded-none bg-slate-900 text-slate-600 transition-all cursor-not-allowed z-10 shadow-sm border border-slate-700">
+                        <i data-lucide="arrow-up" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        // 5-second initial load screen logic
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                const loader = document.getElementById('initialLoader');
+                if (loader) {
+                    loader.style.opacity = '0';
+                    loader.style.transition = 'opacity 0.5s ease';
+                    setTimeout(() => loader.style.display = 'none', 500);
+                }
+            }, 5000);
+        });
+
+        let activeSelectedFiles = [];
+        let activeQuotedContext = null;
+        let messageCounter = 0;
+        let dashboardChartCounter = 2; // Starts at 2 from default generation
+        let dashboardInsightCounter = 3;
+        let viewMode = 'chat';
+        let suggestionsActive = true;
+        let datasetLoaded = false;
+
+        const queryInput = document.getElementById('queryInput');
+        const submitButton = document.getElementById('submitActionButton');
+        const chatContainer = document.getElementById('chatContainer');
+        const inputContainer = document.getElementById('inputContainer');
+
+        function switchView(view) {
+            viewMode = view;
+            const tabChat = document.getElementById('tabChat');
+            const tabDash = document.getElementById('tabDash');
+            const tabData = document.getElementById('tabData');
+
+            const chatCont = document.getElementById('chatContainer');
+            const dashCont = document.getElementById('dashboardContainer');
+            const dataCont = document.getElementById('datasetContainer');
+
+            const printBtn = document.getElementById('printBtn');
+            const inputAreaWrapper = document.getElementById('inputAreaWrapper');
+
+            // Reset tabs styling
+            const inactiveClass = "px-5 py-1.5 rounded-none text-xs font-bold text-slate-400 hover:text-white transition-all uppercase tracking-wide";
+            const activeClass = "px-5 py-1.5 rounded-none text-xs font-bold bg-[#0F172A] text-white transition-all uppercase tracking-wide";
+
+            tabChat.className = inactiveClass;
+            tabDash.className = inactiveClass;
+            tabData.className = inactiveClass;
+
+            chatCont.classList.add('hidden');
+            dashCont.classList.add('hidden');
+            dataCont.classList.add('hidden');
+
+            if (view === 'chat') {
+                tabChat.className = activeClass;
+                chatCont.classList.remove('hidden');
+                printBtn.classList.add('hidden');
+                inputAreaWrapper.classList.remove('hidden');
+                document.getElementById('welcomeHeroArea').classList.remove('hidden');
+            } else if (view === 'dashboard') {
+                tabDash.className = activeClass;
+                dashCont.classList.remove('hidden');
+                printBtn.classList.remove('hidden');
+                printBtn.classList.add('flex');
+                inputAreaWrapper.classList.add('hidden');
+                document.getElementById('welcomeHeroArea').classList.add('hidden');
+            } else if (view === 'dataset') {
+                tabData.className = activeClass;
+                dataCont.classList.remove('hidden');
+                printBtn.classList.add('hidden');
+                inputAreaWrapper.classList.add('hidden');
+                document.getElementById('welcomeHeroArea').classList.add('hidden');
+            }
+        }
+
+        function triggerFileUploadClick() {
+            document.getElementById('hiddenFileInput').click();
+        }
+
+        async function handleFileSelectionEvent(inputNode) {
+            if (inputNode.files.length > 0) {
+                const newFiles = Array.from(inputNode.files);
+                const availableSlots = 3 - activeSelectedFiles.length;
+                if (availableSlots > 0) {
+                    activeSelectedFiles = [...activeSelectedFiles, ...newFiles.slice(0, availableSlots)];
+                }
+
+                renderFileChips();
+
+                queryInput.removeAttribute('disabled');
+                inputContainer.classList.remove('cursor-not-allowed');
+                queryInput.classList.remove('cursor-not-allowed');
+                queryInput.placeholder = "Submit strategic analysis instructions...";
+
+                submitButton.removeAttribute('disabled');
+                submitButton.classList.remove('bg-slate-900', 'text-slate-600', 'cursor-not-allowed');
+                submitButton.classList.add('bg-white', 'text-[#0F172A]', 'hover:bg-slate-200');
+
+                if (suggestionsActive) {
+                    document.getElementById('suggestionsBlock').classList.remove('hidden');
+                    document.getElementById('sugToggleBtn').classList.add('hidden');
+                }
+
+                datasetLoaded = false;
+                lucide.createIcons();
+                fetchQuickInsight();
+                inputNode.value = "";
+            }
+        }
+
+        function renderFileChips() {
+            const container = document.getElementById('fileChipsContainer');
+            if (activeSelectedFiles.length === 0) {
+                container.classList.add('hidden');
+                container.classList.remove('flex');
+                container.innerHTML = "";
+            } else {
+                container.classList.remove('hidden');
+                container.classList.add('flex');
+                container.innerHTML = activeSelectedFiles.map((file, index) => `
+                    <div class="flex items-center gap-2 bg-slate-800 border border-slate-700 w-fit px-3 py-1 rounded-none shadow-sm">
+                        <i data-lucide="file-text" class="w-3.5 h-3.5 text-slate-300"></i>
+                        <span class="text-xs font-bold text-white truncate max-w-[150px]">${file.name}</span>
+                        <button type="button" onclick="removeFileAttachment(${index})" class="ml-1 text-slate-400 hover:text-rose-500 transition-colors">
+                            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                `).join('');
+                lucide.createIcons();
+            }
+        }
+
+        function removeFileAttachment(index) {
+            activeSelectedFiles.splice(index, 1);
+            renderFileChips();
+            if (activeSelectedFiles.length === 0) {
+                clearAllFilesState();
+            } else {
+                fetchQuickInsight();
+            }
+        }
+
+        async function fetchQuickInsight() {
+            if (activeSelectedFiles.length === 0) return;
+            const formData = new FormData();
+            activeSelectedFiles.forEach(f => formData.append("files", f));
+
+            try {
+                const response = await fetch("http://127.0.0.1:8000/api/quick_insight", {
+                    method: "POST",
+                    body: formData
+                });
+                const data = await response.json();
+                if (data.status === "success") {
+                    showInsightBanner(data.insight);
+                    if (data.suggestions && data.suggestions.length > 0) {
+                        const sugBlock = document.getElementById('suggestionsBlock');
+                        sugBlock.innerHTML = data.suggestions.map(s =>
+                            `<button onclick="useSuggestion(this.innerText)" class="shrink-0 bg-slate-800 border border-slate-700 hover:border-slate-500 text-slate-400 hover:text-white px-4 py-2 rounded-none text-xs font-bold uppercase tracking-wide transition-colors">${s}</button>`
+                        ).join('') + `
+                            <button type="button" onclick="dismissSuggestions()" class="shrink-0 flex items-center justify-center w-8 h-8 bg-slate-800 hover:bg-rose-900 text-slate-500 hover:text-rose-400 border border-slate-700 hover:border-rose-800 rounded-none transition-colors ml-auto">
+                                <i data-lucide="x" class="w-4 h-4"></i>
+                            </button>
+                        `;
+                        lucide.createIcons();
+                    }
+                }
+            } catch (e) {
+                console.error("Quick insight failed.");
+            }
+        }
+
+        function showInsightBanner(text) {
+            const banner = document.getElementById('insightBanner');
+            document.getElementById('insightBannerText').innerText = text;
+            banner.classList.remove('hidden');
+            banner.classList.add('flex');
+
+            setTimeout(() => {
+                banner.classList.remove('-translate-y-12', 'opacity-0');
+                banner.classList.add('translate-y-0', 'opacity-100');
+            }, 50);
+
+            setTimeout(() => {
+                banner.classList.add('-translate-y-12', 'opacity-0');
+                banner.classList.remove('translate-y-0', 'opacity-100');
+                setTimeout(() => {
+                    banner.classList.add('hidden');
+                    banner.classList.remove('flex');
+                }, 500);
+            }, 8000);
+        }
+
+        function dismissSuggestions() {
+            suggestionsActive = false;
+            document.getElementById('suggestionsBlock').classList.add('hidden');
+            document.getElementById('sugToggleBtn').classList.remove('hidden');
+            document.getElementById('sugToggleBtn').classList.add('flex');
+        }
+
+        function toggleSuggestions() {
+            suggestionsActive = true;
+            document.getElementById('sugToggleBtn').classList.add('hidden');
+            document.getElementById('sugToggleBtn').classList.remove('flex');
+            document.getElementById('suggestionsBlock').classList.remove('hidden');
+        }
+
+        function useSuggestion(text) {
+            if (activeSelectedFiles.length === 0) return alert("Please upload a file first.");
+            queryInput.value = text;
+            submitAnalysisQuery(); // Automatically trigger analysis execution
+        }
+
+        function clearAllFilesState() {
+            activeSelectedFiles = [];
+            datasetLoaded = false;
+            document.getElementById('hiddenFileInput').value = "";
+            renderFileChips();
+
+            queryInput.setAttribute('disabled', 'true');
+            inputContainer.classList.add('cursor-not-allowed');
+            queryInput.classList.add('cursor-not-allowed');
+            queryInput.value = "";
+            queryInput.placeholder = "Attach a data asset to unlock the execution terminal...";
+            queryInput.style.height = "auto";
+            clearQuotedContext();
+            dismissSuggestions();
+            document.getElementById('sugToggleBtn').classList.add('hidden');
+
+            submitButton.setAttribute('disabled', 'true');
+            submitButton.classList.add('bg-slate-900', 'text-slate-600', 'cursor-not-allowed');
+            submitButton.classList.remove('bg-white', 'text-[#0F172A]', 'hover:bg-slate-200');
+
+            document.getElementById('dataTableContainer').classList.add('hidden');
+            document.getElementById('rawDataTableHead').innerHTML = "";
+            document.getElementById('rawDataTableBody').innerHTML = "";
+        }
+
+        function adjustTextAreaHeight(element) {
+            element.style.height = "auto";
+            element.style.height = (element.scrollHeight) + "px";
+        }
+
+        function replyToMessage(text) {
+            activeQuotedContext = text.substring(0, 150) + (text.length > 150 ? '...' : '');
+            document.getElementById('quotedText').innerText = activeQuotedContext;
+            document.getElementById('quotedContext').classList.remove('hidden');
+            document.getElementById('quotedContext').classList.add('flex');
+            queryInput.focus();
+        }
+
+        function clearQuotedContext() {
+            activeQuotedContext = null;
+            document.getElementById('quotedText').innerText = "";
+            document.getElementById('quotedContext').classList.add('hidden');
+            document.getElementById('quotedContext').classList.remove('flex');
+        }
+
+        function printDashboard() {
+            window.print();
+        }
+
+        function downloadCustomChart(id) {
+            Plotly.downloadImage('chart-' + id, {
+                format: 'png',
+                filename: 'Asklytics_Visualization_' + id
+            });
+        }
+
+        function createUserMessageHtml(query) {
+            const safeQuery = query.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            return `
+                <div class="flex flex-col items-end w-full mb-8">
+                    <div class="text-[#0F172A] text-xl md:text-2xl font-black tracking-tight max-w-[85%] text-right border-r-4 border-[#0F172A] pr-5 py-2">
+                        ${safeQuery}
+                    </div>
+                </div>
+            `;
+        }
+
+        function createAiMessageHtml(id) {
+            return `
+                <div class="flex flex-col w-full mb-12 group relative" id="ai-msg-${id}">
+                    <div class="flex flex-col w-full">
+                        <div id="text-${id}" class="text-[15px] md:text-base text-slate-700 leading-relaxed font-medium whitespace-pre-line border-l-4 border-slate-200 pl-5">
+                            <div class="flex items-center gap-3 text-slate-500 text-sm font-bold"><i data-lucide="loader-2" class="w-4 h-4 animate-spin text-[#0F172A]"></i><span class="uppercase tracking-widest text-[11px]">Processing</span></div>
+                        </div>
+                        
+                        <div class="relative group/chart w-full mt-4 empty:hidden">
+                            <div id="chart-${id}" style="min-height: 400px; display: none;"></div>
+                        </div>
+                        
+                        <div class="flex items-center gap-2 mt-4 ml-5">
+                            <button type="button" onclick="replyToMessage(document.getElementById('text-${id}').innerText)" class="hidden items-center gap-2 bg-white hover:bg-slate-100 border border-slate-300 text-slate-600 px-3 py-1.5 rounded-none text-xs font-bold uppercase tracking-wider transition-all shadow-sm" id="reply-btn-${id}">
+                                <i data-lucide="reply" class="w-3.5 h-3.5"></i> Reply
+                            </button>
+                            <button type="button" onclick="downloadCustomChart('${id}')" class="hidden items-center gap-2 bg-[#0F172A] hover:bg-slate-800 border border-slate-700 text-white px-3 py-1.5 rounded-none text-xs font-bold uppercase tracking-wider transition-all shadow-sm" id="download-btn-${id}">
+                                <i data-lucide="download" class="w-3.5 h-3.5"></i> Download PNG
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // plotLayoutConfig removed to prevent corrupting Plotly's native Python layout structures
+
+        const plotModeBarConfig = {
+            responsive: true,
+            displayModeBar: false
+        };
+
+        async function submitAnalysisQuery() {
+            let queryString = queryInput.value;
+            if (activeSelectedFiles.length === 0 || !queryString.trim()) return;
+
+            if (activeQuotedContext) {
+                queryString = `[Context: ${activeQuotedContext}] \n\n` + queryString;
+            }
+
+            document.getElementById('welcomeHeroArea').classList.add('collapsed');
+            chatContainer.classList.remove('hidden');
+            chatContainer.classList.add('flex');
+
+            chatContainer.insertAdjacentHTML('beforeend', createUserMessageHtml(queryInput.value));
+
+            const msgId = ++messageCounter;
+            chatContainer.insertAdjacentHTML('beforeend', createAiMessageHtml(msgId));
+            lucide.createIcons();
+
+            window.scrollTo({
+                top: document.body.scrollHeight,
+                behavior: 'smooth'
+            });
+
+            const formData = new FormData();
+            activeSelectedFiles.forEach(f => formData.append("files", f));
+            formData.append("query", queryString);
+
+            queryInput.value = "";
+            queryInput.style.height = "auto";
+            clearQuotedContext();
+
+            try {
+                const response = await fetch("http://127.0.0.1:8000/api/analyze", {
+                    method: "POST",
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.status === "success") {
+                    document.getElementById(`text-${msgId}`).innerText = data.insight;
+                    document.getElementById(`reply-btn-${msgId}`).classList.remove('hidden');
+                    document.getElementById(`reply-btn-${msgId}`).classList.add('flex');
+
+                    if (data.chart_data) {
+                        const chartDiv = document.getElementById(`chart-${msgId}`);
+                        const downloadBtn = document.getElementById(`download-btn-${msgId}`);
+                        chartDiv.style.display = 'block';
+                        downloadBtn.classList.remove('hidden');
+                        downloadBtn.classList.add('flex');
+
+                        Plotly.newPlot(`chart-${msgId}`, data.chart_data.data, data.chart_data.layout, plotModeBarConfig);
+                    }
+
+                    if (data.suggestions && data.suggestions.length > 0) {
+                        const sugBlock = document.getElementById('suggestionsBlock');
+                        const innerBtns = data.suggestions.map(s =>
+                            `<button onclick="useSuggestion(this.innerText)" class="shrink-0 bg-slate-800 border border-slate-700 hover:border-slate-500 text-slate-400 hover:text-white px-4 py-2 rounded-none text-xs font-bold uppercase tracking-wide transition-colors">${s}</button>`
+                        ).join('');
+
+                        sugBlock.innerHTML = innerBtns + `
+                            <button type="button" onclick="dismissSuggestions()" class="shrink-0 flex items-center justify-center w-8 h-8 bg-slate-800 hover:bg-rose-900 text-slate-500 hover:text-rose-400 border border-slate-700 hover:border-rose-800 rounded-none transition-colors ml-auto">
+                                <i data-lucide="x" class="w-4 h-4"></i>
+                            </button>
+                        `;
+
+                        document.getElementById('sugToggleBtn').classList.add('hidden');
+                        sugBlock.classList.remove('hidden');
+                        sugBlock.classList.add('flex');
+                    }
+                } else {
+                    document.getElementById(`text-${msgId}`).innerHTML = `<span class="text-sm font-bold uppercase tracking-wider text-rose-600">Exception: ${data.message}</span>`;
+                }
+            } catch (err) {
+                document.getElementById(`text-${msgId}`).innerHTML = `<span class="text-sm font-bold uppercase tracking-wider text-rose-600">Request Failed: ${err.message || 'Connection Terminated'}</span>`;
+            }
+
+            lucide.createIcons();
+            window.scrollTo({
+                top: document.body.scrollHeight,
+                behavior: 'smooth'
+            });
+        }
+
+        // Dashboard dynamic elements templates
+        function createDashTextCardHtml(id, title, content) {
+            return `
+                <div class="relative group bg-transparent border-l-2 border-l-violet-500 pl-5 flex flex-col gap-3 h-full overflow-y-auto max-h-[300px]" id="dash-item-${id}">
+                    <button onclick="document.getElementById('dash-item-${id}').remove()" class="absolute top-0 right-2 opacity-0 group-hover:opacity-100 bg-rose-100 hover:bg-rose-500 text-rose-600 hover:text-white p-1 rounded-sm transition-all shadow-sm z-20">
+                        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                    </button>
+                    <div class="flex items-center gap-2 text-violet-700 font-black text-xs uppercase tracking-wider sticky top-0 bg-white/90 backdrop-blur pb-2 z-10">
+                        <i data-lucide="lightbulb" class="w-4 h-4"></i> ${title}
+                    </div>
+                    <p class="text-sm text-slate-700 leading-relaxed break-words whitespace-pre-wrap">${content}</p>
+                </div>
+            `;
+        }
+
+        function createDashChartCardHtml(id, title) {
+            return `
+                <div class="relative group bg-transparent flex flex-col gap-2 w-full overflow-hidden" id="dash-item-${id}">
+                    <button onclick="document.getElementById('dash-item-${id}').remove()" class="absolute top-0 right-2 opacity-0 group-hover:opacity-100 bg-rose-100 hover:bg-rose-500 text-rose-600 hover:text-white p-1 rounded-sm transition-all shadow-sm z-20">
+                        <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                    </button>
+                    <span class="text-xs font-black text-slate-500 uppercase tracking-wider shrink-0 mb-2 border-b border-slate-200 pb-2">${title}</span>
+                    <div id="dashChart${id}" class="w-full h-[400px]"></div>
+                </div>
+            `;
+        }
+
+        async function generateDashboard() {
+            if (activeSelectedFiles.length === 0) return alert("Please select a file first.");
+
+            document.getElementById('dashContent').classList.add('hidden');
+            document.getElementById('dashContent').classList.remove('flex');
+            document.getElementById('dashLoader').classList.remove('hidden');
+            document.getElementById('dashLoader').classList.add('flex');
+
+            const formData = new FormData();
+            activeSelectedFiles.forEach(f => formData.append("files", f));
+
+            try {
+                const response = await fetch("http://127.0.0.1:8000/api/dashboard", {
+                    method: "POST",
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (data.status === "success") {
+                    document.getElementById('dashLoader').classList.add('hidden');
+                    document.getElementById('dashLoader').classList.remove('flex');
+                    document.getElementById('dashContent').classList.remove('hidden');
+                    document.getElementById('dashContent').classList.add('flex');
+
+                    // Populate initial Insights
+                    const insightsGrid = document.getElementById('dashInsightsGrid');
+                    insightsGrid.innerHTML = `
+                        ${createDashTextCardHtml('base-1', 'Anomalies', data.anomalies.length > 0 ? data.anomalies.map(a => '• ' + a).join('\\n') : 'No critical anomalies detected.')}
+                        ${createDashTextCardHtml('base-2', 'Key Trends', data.trends.length > 0 ? data.trends.map(t => '• ' + t).join('\\n') : 'No significant trends observed.')}
+                        ${createDashTextCardHtml('base-3', 'Managerial Summary', data.summary)}
+                    `;
+                    // Fix styling colors for the default base cards
+                    document.getElementById('dash-item-base-1').className = "relative group bg-transparent border-l-2 border-l-rose-500 pl-5 flex flex-col gap-3 h-full overflow-y-auto max-h-[300px]";
+                    document.querySelector('#dash-item-base-1 > div.sticky').className = "flex items-center gap-2 text-rose-700 font-black text-xs uppercase tracking-wider sticky top-0 bg-white/90 backdrop-blur pb-2 z-10";
+                    document.getElementById('dash-item-base-2').className = "relative group bg-transparent border-l-2 border-l-emerald-500 pl-5 flex flex-col gap-3 h-full overflow-y-auto max-h-[300px]";
+                    document.querySelector('#dash-item-base-2 > div.sticky').className = "flex items-center gap-2 text-emerald-700 font-black text-xs uppercase tracking-wider sticky top-0 bg-white/90 backdrop-blur pb-2 z-10";
+                    document.getElementById('dash-item-base-3').className = "relative group bg-transparent border-l-2 border-l-blue-500 pl-5 flex flex-col gap-3 h-full overflow-y-auto max-h-[300px]";
+                    document.querySelector('#dash-item-base-3 > div.sticky').className = "flex items-center gap-2 text-blue-700 font-black text-xs uppercase tracking-wider sticky top-0 bg-white/90 backdrop-blur pb-2 z-10";
+
+
+                    document.getElementById('dashDatasetName').innerText = activeSelectedFiles[0].name;
+                    document.getElementById('dashDatasetName').classList.remove('hidden');
+                    if (data.dataset_description) {
+                        document.getElementById('dashDatasetDesc').innerText = data.dataset_description;
+                    }
+
+                    // Populate initial Charts
+                    const chartsGrid = document.getElementById('dashChartsGrid');
+                    chartsGrid.innerHTML = `
+                        ${createDashChartCardHtml('1', data.chart1_title || 'Primary Visualization')}
+                        ${createDashChartCardHtml('2', data.chart2_title || 'Secondary Visualization')}
+                    `;
+
+                    if (data.chart1) {
+                        Plotly.newPlot('dashChart1', data.chart1.data, data.chart1.layout, plotModeBarConfig);
+                    } else document.getElementById('dashChart1').innerHTML = '<span class="text-xs text-slate-400">Visualization unavailable</span>';
+
+                    if (data.chart2) {
+                        Plotly.newPlot('dashChart2', data.chart2.data, data.chart2.layout, plotModeBarConfig);
+                    } else document.getElementById('dashChart2').innerHTML = '<span class="text-xs text-slate-400">Visualization unavailable</span>';
+
+                    lucide.createIcons();
+                } else {
+                    const errorMsg = data.message || (data.detail ? JSON.stringify(data.detail) : "Unknown error");
+                    alert("Dashboard generation failed: " + errorMsg);
+                    document.getElementById('dashLoader').classList.add('hidden');
+                }
+            } catch (e) {
+                alert("Service connectivity interrupted.");
+                document.getElementById('dashLoader').classList.add('hidden');
+            }
+        }
+
+        async function submitDashboardAddition() {
+            const inputField = document.getElementById('dashAddInput');
+            const query = inputField.value;
+            if (activeSelectedFiles.length === 0 || !query.trim()) return;
+
+            document.getElementById('dashAddLoader').classList.remove('hidden');
+            document.getElementById('dashAddLoader').classList.add('flex');
+            inputField.disabled = true;
+
+            const formData = new FormData();
+            activeSelectedFiles.forEach(f => formData.append("files", f));
+            formData.append("query", query);
+
+            try {
+                const response = await fetch("http://127.0.0.1:8000/api/dashboard_add", {
+                    method: "POST",
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (data.status === "success") {
+                    if (data.type === "chart") {
+                        dashboardChartCounter++;
+                        const id = dashboardChartCounter;
+                        const chartsGrid = document.getElementById('dashChartsGrid');
+                        chartsGrid.insertAdjacentHTML('beforeend', createDashChartCardHtml(id, `Generated: ${query.substring(0, 30)}...`));
+
+                        const layout = {...plotLayoutConfig,
+                            ...data.content.layout
+                        };
+                        if (!data.content.data[0].marker) data.content.data[0].marker = {};
+                        data.content.data[0].marker.color = "#0F172A";
+
+                        Plotly.newPlot(`dashChart${id}`, data.content.data, layout, plotModeBarConfig);
+
+                    } else if (data.type === "text") {
+                        dashboardInsightCounter++;
+                        const id = `insight-${dashboardInsightCounter}`;
+                        const insightsGrid = document.getElementById('dashInsightsGrid');
+                        insightsGrid.insertAdjacentHTML('beforeend', createDashTextCardHtml(id, `Insight`, data.content));
+                    }
+                    inputField.value = "";
+                    lucide.createIcons();
+                } else {
+                    alert("Failed to add insight: " + data.message);
+                }
+            } catch (err) {
+                alert("Connection Terminated while expanding dashboard.");
+            }
+
+            document.getElementById('dashAddLoader').classList.add('hidden');
+            document.getElementById('dashAddLoader').classList.remove('flex');
+            inputField.disabled = false;
+            inputField.focus();
+        }
+
+        async function generateDataset() {
+            if (activeSelectedFiles.length === 0) return alert("Please select a tabular file first.");
+            if (datasetLoaded) return;
+
+            document.getElementById('dataTableContainer').classList.add('hidden');
+            document.getElementById('dataLoader').classList.remove('hidden');
+            document.getElementById('dataLoader').classList.add('flex');
+
+            const formData = new FormData();
+            activeSelectedFiles.forEach(f => formData.append("files", f));
+
+            try {
+                const response = await fetch("http://127.0.0.1:8000/api/dataset", {
+                    method: "POST",
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (data.status === "success") {
+                    document.getElementById('dataLoader').classList.add('hidden');
+                    document.getElementById('dataLoader').classList.remove('flex');
+                    document.getElementById('dataTableContainer').classList.remove('hidden');
+
+                    const thead = document.getElementById('rawDataTableHead');
+                    thead.innerHTML = `<tr>${data.columns.map(c => `<th scope="col" class="px-6 py-3 font-bold tracking-wider">${c}</th>`).join('')}</tr>`;
+                    
+                    const tbody = document.getElementById('rawDataTableBody');
+                    tbody.innerHTML = data.rows.map(row => {
+                        return `<tr class="hover:bg-slate-50 transition-colors">${data.columns.map(c => `<td class="px-6 py-4">${row[c]}</td>`).join('')}</tr>`;
+                    }).join('');
+
+                    datasetLoaded = true;
+                } else {
+                    const errorMsg = data.message || (data.detail ? JSON.stringify(data.detail) : "Unknown error");
+                    alert("Dataset parsing failed: " + errorMsg);
+                    document.getElementById('dataLoader').classList.add('hidden');
+                }
+            } catch(e) {
+                alert("Service connectivity interrupted.");
+                document.getElementById('dataLoader').classList.add('hidden');
+            }
+        }
+    </script>
+</body>
+
+</html>
